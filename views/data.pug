@@ -1,0 +1,111 @@
+doctype html
+head
+#chartContainer(style='height: 450px; width: 100%;')
+
+
+
+header CURRENT STATUS
+  br
+  a(href="/user") GO BACK
+  br
+  form(id="form" method="POST" action="/buy")
+    div   
+      label(for="amount") AMOUNT: 
+      input(type="text" name="amount")
+      div 
+        input(type="submit" value="BUY")
+  //a(href='/buy') BUY
+  br
+  a(href='/sell') SELL
+  br
+  tradeMessage=tradeMessage
+  h1 CURRENT BALANCE 
+  balance=balance 
+  br
+  h1  COMPANY NAME
+  name=name 
+  h1 SYMBOL
+  br
+  symbol=symbol 
+  h1 CURRENT PRICE 
+  br
+  current=current 
+  h1 OPEN
+  br
+  open=open
+  h1 HIGH
+  br
+  high=high 
+  h1 LOW
+  br
+  low=low
+  script(type='text/javascript' src='https://canvasjs.com/assets/script/canvasjs.stock.min.js')
+  script(type='text/javascript').
+  
+    window.onload = function () {
+
+   
+    var dataPoints = [], currentDate = new Date(), rangeChangedTriggered = false;
+    var stockChart = new CanvasJS.StockChart("chartContainer",{
+    theme: "dark1", //"light2", "dark1", "dark2"
+    title:{
+    text:"Dynamic StockChart"
+    },
+    rangeChanged: function(e) {
+    rangeChangedTriggered = true;
+    },
+    charts: [{
+    axisX: {
+    crosshair: {
+    enabled: true,
+    valueFormatString: "MMM DD, YYYY HH:mm:ss"
+    }
+    },
+    axisY: {
+    title: "Pageviews Per Second"
+    },
+    toolTip: {
+    shared: true
+    },
+    data: [{
+    type: "line",
+    name: "Pageviews",
+    xValueFormatString: "MMM DD, YYYY HH:mm:ss",
+    xValueType: "dateTime",
+    dataPoints : dataPoints
+    }]
+    }],
+    navigator: {
+    slider: {
+    minimum: new Date(currentDate.getTime() - (90 * 1000))
+    },
+    axisX: {
+    labelFontColor: "white"
+    }
+    },
+    rangeSelector: {
+    enabled: false
+    }
+    });
+    var dataCount = 700, ystart = 50, interval = 1000, xstart = (currentDate.getTime() - (700 * 1000));
+    updateChart(xstart, ystart, dataCount, interval);
+    function updateChart(xstart, ystart, length, interval) {
+    var xVal = xstart, yVal = ystart;
+    for(var i = 0; i < length; i++) {
+    yVal = yVal +  Math.round(5 + Math.random() *(-5-5));
+    yVal = Math.min(Math.max(yVal, 5), 90);
+    dataPoints.push({x: xVal,y: yVal});
+    xVal += interval;
+    }
+    if(!rangeChangedTriggered) {
+    stockChart.options.navigator.slider.minimum = new Date(xVal - (90 * 10000)) ;
+    }
+    xstart = xVal;
+    dataCount = 1;
+    ystart = yVal;
+    stockChart.render();
+    setTimeout(function() { updateChart(xstart, ystart, dataCount, interval); }, 1000);
+    }
+    }
+    
+    

@@ -1,0 +1,77 @@
+
+doctype html
+head
+  meta(charset='utf-8')
+  style(media='screen').
+    body{
+    text-align: center!important;
+    }
+  
+  script.
+  
+    window.onload = function () {
+    var today = new Date();
+    var time = today.getHours() + ":" + today.getMinutes();
+    var dps = []; // dataPoints
+    
+    var chart = new CanvasJS.Chart("chartContainer", {
+    title :{
+    text: "Profit"
+    },
+    data: [{
+    type: "line",
+    dataPoints: dps
+    }] 
+    });
+    var xVal = 0;
+    var today = new Date();
+    //var xVal = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+    var yVal = 100;
+    var updateInterval = 1000;
+    var dataLength = 100; // number of dataPoints visible at any point
+    var updateChart = function (count) {
+    count = count || 1;
+    for (var j = 0; j < count; j++) {
+    yVal = yVal +  Math.round(5 + Math.random() *(-5-5));
+    dps.push({
+    x: xVal,
+    y: yVal
+    });
+    xVal++;
+    }
+    if (dps.length > dataLength) {
+    dps.shift();
+    }
+    chart.render();
+    };
+    updateChart(dataLength);
+    setInterval(function(){updateChart()}, updateInterval);
+    }
+    setTimeout(function(){
+    window.location.reload(1);
+    }, 2000);
+#chartContainer(style='height: 370px; width:100%;')
+script(src='https://canvasjs.com/assets/script/canvasjs.min.js')
+br
+current=current
+br
+name=name
+a(href="/logout") LOGOUT
+h2 Select the Stock
+form(action='/data' method='post')
+  button#stock(type='submit' value='AMZN' name='stockSelected') AMAZON
+  br
+  br
+  button#stock(type='submit' value='AAPL' name='stockSelected') AAPL
+  br
+  br
+  button#stock(type='submit' value='TSLA' name='stockSelected') TESLA
+  br
+  br
+  button#stock(type='submit' value='META' name='stockSelected') FACEBOOK
+  br
+  br
+  button#stock(type='submit' value='MSFT' name='stockSelected') Microsoft 
+  br
+  br
+  button#stock(type='submit' value='GOOGL' name='stockSelected') GOOGLE 

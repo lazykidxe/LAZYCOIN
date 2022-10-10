@@ -1,0 +1,25 @@
+doctype 
+html 
+    link(href='style.css', rel='stylesheet')
+
+
+    form(id="form" method="POST" action="/login")     
+        h1 Enter Your Information  
+        div(class="input")
+            label(for="username") Username: 
+            input(type="text" name="username")
+        br
+        br
+        div(class="input")
+            label(for="password") Password:
+            input(type="text" name="password")
+        br
+        br
+        div(class="input")
+            input(type="submit" value="Login")   
+        br
+        br
+        div(class="input")
+            a(href="/create" class="linkD") Create
+        message=message
+    
