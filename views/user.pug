@@ -49,13 +49,17 @@ head
     }
     setTimeout(function(){
     window.location.reload(1);
-    }, 2000);
+    }, 5000);
 #chartContainer(style='height: 370px; width:100%;')
 script(src='https://canvasjs.com/assets/script/canvasjs.min.js')
 br
 current=current
 br
 name=name
+br
+h1 Owned Stocks
+ownedStock=ownedStock
+br
 a(href="/logout") LOGOUT
 h2 Select the Stock
 form(action='/data' method='post')
