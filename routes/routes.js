@@ -26,9 +26,8 @@ app.use(cookieParser());
 
 var session;
 
-var stockSelected;
-
 var userID;
+var count = 1;
 
 exports.home = (req,res) =>{
       session=req.session;
@@ -46,46 +45,66 @@ exports.login = (req,res) =>{
     });
 };
 
-
-
-
-
-
-
 exports.logout = (req,res) =>{
   req.session.destroy();
   res.redirect('/');
 };
-
-
-var gg;
-setInterval(function() {
-  gg++;
-}, 1000);
-
-
 
 exports.create = (req,res) =>{
     res.render("create",{
     });
 };
 
-exports.data = (req,res) =>{
-  res.render("login",{
-  });
-};
+
+// exports.data = (req,res) =>{
+//   res.render("login",{
+//   });
+// };
+
+
+
+var userBalances
+var currentOwnedStocks;
+
+
 
 exports.user = (req,res) =>{
       stockSelected = "";
-      res.render("user",{
-    });
+      var currentUserBalance
+
+      MongoClient.connect(url, function(err, db) {
+        if (err) throw err;
+        var dbo = db.db("LAZYCOIN");
+
+        dbo.collection("UserBalaces").findOne({UserID: userID}, function(err, result) {
+          if (err) throw err;
+          //console.log("USER BALANCE:" + result.Balance);
+          db.close();
+
+          res.render("user",{
+            current: result.Balance,
+            ownedStock: "HELLO"
+        });
+        });
+
+          
+      });
+
+
+
 };
 
 
+
+//------------------------------------------------
+//Page for creating an account and store into the database
+
 exports.createAccount = async (req, res) => {
 
+//
     var data = req.body;
-    var errorMessage;
+
+
     var regexUsername = '^.*(?=.{6,}).*$'
     var regexPassword = '^.*(?=.{6,})(?=.*[a-zA-Z]).*$'
     var regexEmail = '^[a-z0-9](\.?[a-z0-9]){5,}@g(oogle)?mail\.com$'
@@ -93,28 +112,26 @@ exports.createAccount = async (req, res) => {
     var usernameCheck = false;
     var passwordCheck = false;
     var emailCheck = false;
+    var errorMessage;
 
     var validUsername;
     var validPassword;
     var validEmail;
     var validDate;
 
-
+    //-----Check if user inputs are valid
     if(data.email == ""){
         errorMessage = "EMAIL is empty!"
       }else if((data.email).match(new RegExp(regexEmail)) && data.email != ""){
-        //console.log("EMAIL IS CORRECT");
         validEmail = data.email;
         emailCheck = true;
       }else{
         errorMessage = "Email is in wrong format"
-        //console.log("EMAIL IS WRONG")
       }
   
       if(data.password == ""){
         errorMessage = "PASSWORD is empty!"
       }else if((data.password).match(new RegExp(regexPassword)) && data.password != ""){
-        //console.log("PASSWORD IS CORRECT");
         validPassword = data.password;
         passwordCheck = true;
       }else{
@@ -122,25 +139,22 @@ exports.createAccount = async (req, res) => {
         console.log("PASSWORD IS WRONG")
       }
 
-      
     if(data.username === ""){
         errorMessage = "Username is empty!"
       }else if((data.username).match(new RegExp(regexUsername)) && data.username != ""){
-        //console.log("USERNAME IS CORRECT");
         validUsername = data.username;
         usernameCheck = true;  
       }else{
         errorMessage = "Username needs to be more than 6 digits"
-        //console.log("USERNAME IS WRONG")
       }
       validDate = data.date
 
 
+      //if all the inputs are valid, save them into the database
       if(usernameCheck == true && passwordCheck == true && emailCheck == true){
         MongoClient.connect(url, function(err, db) {
             if (err) throw err;
             var dbo = db.db("LAZYCOIN");
-
 
             dbo.collection("Users").count({}, function(error, numOfDocs){
 
@@ -153,33 +167,32 @@ exports.createAccount = async (req, res) => {
               
           });
 
-
+            //generate a user id based on number of user inside the database and 
+            //assign starting balance for each new account
             dbo.collection("Users").count({}, function(error, numOfDocs){
               console.log(numOfDocs);
 
-              var userBalances = {UserID: numOfDocs, Balance: 1000}
+               userBalances = {UserID: numOfDocs, Balance: 1000}
 
               dbo.collection("UserBalaces").insertOne(userBalances, function(err, res) {
                 if (err) throw err;
                 console.log("1 document inserted");
+                //db.close();
+              });
+              console.log("HERE:" + userID + "STOCKID: " + stockInsertID)
+              var buyRecord = { UserID: numOfDocs, StockID: 1,Stock: "AMZN", Shares: 0 , Amount: 0, AverageCost: 0  }; 
+              var buyRecord2 = { UserID: numOfDocs, StockID: 2,Stock: "APPL",Shares: 0 , Amount: 0, AverageCost: 0  }; 
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
+                //db.close();
+              });
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord2, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
                 db.close();
               });
-              
-              
           });
-
-          
-
-
-
-
-
-
-         
-            
-
-
-
           });
           res.render("index",{
         });
@@ -191,21 +204,18 @@ exports.createAccount = async (req, res) => {
 };
 
 
+//-----------------------------------------------------------------------------------------------
 
-var number = 5;
 
+//Page for login account 
 exports.loginAccount = async (req, res) => {
-
-
 
   var userInput = req.body;
   var inputUsername = userInput.username;
   var inputPassword = userInput.password;
   var errorMessage;
 
-
-
-
+  //Check inputs are not empty
   if(inputUsername == "" || inputPassword == ""){
     console.log("USERNAME OR PASSWORD IS EMPTY");
     errorMessage = "USERNAME OR PASSWORD IS EMPTY";
@@ -213,7 +223,7 @@ exports.loginAccount = async (req, res) => {
       message:errorMessage
     });
   }else if(inputUsername != "" ){
-    
+    //After passed the empty check, search matching username and password from the database
     MongoClient.connect(url, function(err, db) {
       if (err) throw err;
       var dbo = db.db("LAZYCOIN");
@@ -229,33 +239,38 @@ exports.loginAccount = async (req, res) => {
           var name = result.Username
 
           userID = result.UserID;
-
+          
+          //if matching authorzation found, find all the data associated to the account
+          
+          //Find balance (missing owned stocks)-----------------------------------------------------------------------------------------------------------------------------
+          var loginUserBalance;
           dbo.collection("UserBalaces").findOne({UserID: result.UserID}, function(err, result) {
             if (err) throw err;
- 
-            userBalances = result.Balance
+            
+            loginUserBalance = result.Balance
+            console.log("LOGIN USER BALANCE:" + loginUserBalance)
             db.close();
 
             session=req.session;
             session.userid=req.body.username;
-  
-            console.log(userBalances)
-            console.log(name)
-  
+
+
+
             res.render("user",    {
               name: name,
-              current : result.Balance
-            
+              current : loginUserBalance,
+              ownedStock : "AA"
+  
+              
           });
           });
+
 
 
 
         }
-       
       });
     });
-
   }
 }
 
@@ -274,18 +289,21 @@ exports.loginAccount = async (req, res) => {
 
 const encodedParams = new URLSearchParams();
 var stockInsertID;
+var currentBalace;
+var currentStockPrice;
+
+ 
+
 
 exports.data = (req,res) =>{
 
-
 var data = req.body;
-
 var stock = data.stockSelected;
 
-var currentBalace;
+
 
 encodedParams.append("symbol", stock );
-console.log("STOCK:" + stock)
+//console.log("STOCK:" + stock)
 
 
 
@@ -309,6 +327,7 @@ MongoClient.connect(url, function(err, db) {
   if (err) throw err;
   var dbo = db.db("LAZYCOIN");
   dbo.collection("Stocks").findOne({Stock: stock}, function(err, result) {
+
 
 
     if (err) throw err;
@@ -341,6 +360,26 @@ axios.request(options).then(function (response) {
   stockOpen = dataFromResponse.result.regularMarketOpen
   stockHigh = dataFromResponse.result.regularMarketDayHigh
   stockLow = dataFromResponse.result.regularMarketDayLow
+
+  currentStockPrice = currentPrice;
+
+
+  var today = new Date();  
+  var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  //console.log(time)
+
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("LAZYCOIN");
+    var myobj = {Time: time, CurrentPrice: currentPrice};
+    dbo.collection(stockSymbol + "Seconds").insertOne(myobj, function(err, res) {
+      if (err) throw err;
+      //console.log("1 document inserted");
+      db.close();
+    });
+  });
+
+
   
 
   res.render("data",{
@@ -376,45 +415,150 @@ axios.request(options).then(function (response) {
 
 exports.buy = async(req,res) =>{
 
-  //user id 
-  //user current balance 
-  //console.log(userID)
-
 
   var data = req.body
-  console.log( "AMOUNT " + data.amount);
- 
+
+  
 
  
-
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
     var dbo = db.db("LAZYCOIN");
     dbo.collection("UserBalaces").findOne({UserID: userID}, function(err, result) {
       if (err) throw err;
-      //console.log(result);
-      db.close();
+      //console.log("HAVE:" + result.Balance);
+ 
+      //db.close();
+      if( result.Balance > data.amount){
+
+        //console.log("YOU CAN BUY")
+    
+    
+    
+        MongoClient.connect(url, function(err, db) {
+          if (err) throw err;
+          var dbo = db.db("LAZYCOIN");
+
+
+
+
+
+          dbo.collection("User_Owned_Stocks").findOne({StockID:parseInt(stockInsertID), UserID: parseInt(userID)}, function(err, result) {
+            if (err) throw err;
+            
+ 
+
+
+
+            if(result.StockID == stockInsertID){
+
+              //console.log("CURRENT:" + currentStockPrice)
+
+              var totalAmountBought;
+              var totalSharesBough;
+              var AverageCost = totalAmountBought / totalSharesBough;
+              
+             
+              var updateAmount = {$set:{Amount: parseInt(result.Amount) + parseInt(data.amount)}};
+              var currentAmount = {Amount: result.Amount};
+
+              
+              var addOnShares = parseInt(data.amount) / currentStockPrice;
+              var roundShares = Math.round((addOnShares + Number.EPSILON) * 100) / 100
+              var updateShares = {$set:{Shares: roundShares + parseInt(result.Shares)}};
+              var currentShares = {Shares: result.Shares}
+
+              //console.log("CURRENT:" +result.Shares)
+              //console.log("UPDATE:" + roundShares)
+
+              console.log("CHECK 1 : " + data.amount)
+              data.amount = 0;
+              console.log("CHECK 2 : " + data.amount)
+
+             
+
+              dbo.collection("User_Owned_Stocks").updateOne(currentAmount, updateAmount, function(err, res) {
+                if (err) throw err;
+                //db.close();
+              });
+
+        
+
+                dbo.collection("User_Owned_Stocks").updateOne(currentShares, updateShares, function(err, res) {
+                  if (err) throw err;
+                  //db.close();
+                });
+  
+       
+
+
+
+              
+
+              dbo.collection("UserBalaces").findOne({UserID: userID}, function(err, result) {
+                if (err) throw err;
+                dbBalance = result.Balance;
+                userCurrentBalance = result.Balance - data.amount;
+        
+                // console.log("AMOUNT: "+ data.amount)
+                // console.log("USERCURRENTBALANCE: " + userCurrentBalance);
+                // console.log("DB BALANCE: " + dbBalance);
+                
+                
+        
+                var myquery = { Balance: dbBalance };
+                var newvalues = { $set: {UserID: userID, Balance: userCurrentBalance } };
+            
+                
+                dbo.collection("UserBalaces").updateOne(myquery, newvalues, function(err, res) {
+                  if (err) throw err;
+           
+                  db.close();
+                });
+
+                count--;
+      
+                
+              });
+
+            }
+          });
+
+       
+        });
+
+
+
+
+    
+        var userCurrentBalance;
+        var dbBalance;
+     
+    
+    
+        res.render("data",{
+          tradeMessage: "YOU BOUGHT ",
+            current: userBalances,
+           
+            
+           
+        });
+     
+      }else{
+        res.render("data",{
+          tradeMessage: "YOU DONT HAVE ENOUGH"
+        });
+      }
     });
   });
 
 
-
-
-  MongoClient.connect(url, function(err, db) {
-    if (err) throw err;
-    var dbo = db.db("LAZYCOIN");
-    var buyRecord = { UserID: userID, StockID: stockInsertID, Amount: data.amount };
-    dbo.collection("User_Owned_Stocks").insertOne(buyRecord, function(err, res) {
-      if (err) throw err;
-      console.log("1 document inserted");
-      db.close();
-    });
-  });
+  
 
 
 
-  res.render("data",{
-    tradeMessage: "make it"
-  });
+
+
 
 }
+
