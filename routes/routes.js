@@ -8,6 +8,10 @@ const app = express();
 
 const oneDay = 1000 * 60 * 60 * 24;
 
+const encodedParams = new URLSearchParams();
+
+var name
+var currentStock;
 
 
 
@@ -35,6 +39,186 @@ var stockInsertID;
 var currentBalace;
 var currentStockPrice;
 
+var amazonPrice;
+var applePrice;
+var teslaPrice;
+var amazonToday;
+var appleToday;
+var teslaToday;
+var amazonVolume;
+
+var userAmazon;
+var userAmazonPrice;
+var userAmazonHold;
+var userAmazonAverage;
+var userAmazonChange;
+
+
+
+
+
+var stockCheck = "AMZN";
+    setInterval(function(){
+      encodedParams.append("symbol", stockCheck );
+      const options = {
+        method: 'GET',
+        url: 'https://yahoofinance-stocks1.p.rapidapi.com/stock-metadata',
+        params: {Symbol: stockCheck},
+        headers: {
+          'X-RapidAPI-Key': '238218e685msh4e469b864f5d032p184fd5jsn8fe519100be3',
+          'X-RapidAPI-Host': 'yahoofinance-stocks1.p.rapidapi.com'
+        }
+      };
+      axios.request(options).then(function (response) {
+        var dataFromResponse = response.data;
+        //amazonPrice = dataFromResponse.result.regularMarketPrice;
+        if(stockCheck == "AMZN"){
+          amazonPrice = dataFromResponse.result.regularMarketPrice;
+          amazonToday = Math.round(dataFromResponse.result.regularMarketChangePercent * 100) / 100 
+          amazonVolume = dataFromResponse.result.regularMarketVolume;
+          amazonVolume = Math.round(amazonVolume / 1000000 * 100) / 100
+          stockCheck = "AAPL"
+          //console.log('Amazon read!')
+        }else if(stockCheck == "AAPL"){
+          applePrice = dataFromResponse.result.regularMarketPrice;
+          appleToday = Math.round(dataFromResponse.result.regularMarketChangePercent * 100) / 100 
+          stockCheck = "TSLA"
+          //console.log("Apple read!")
+        }else if(stockCheck == "TSLA"){
+          teslaPrice = dataFromResponse.result.regularMarketPrice;
+          teslaToday = Math.round(dataFromResponse.result.regularMarketChangePercent * 100) / 100 
+          stockCheck = "AMZN"
+          //console.log("Tesla read!")
+          //console.log("Good to go!")
+        }
+
+
+
+        
+      })
+
+
+      MongoClient.connect(url, function(err, db) {
+        if (err) throw err;
+        var dbo = db.db("LAZYCOIN");
+       
+
+        if(userID != null){
+          dbo.collection("User_Owned_Stocks").findOne({UserID:userID,StockID:1}, function(err, result) {
+            if (err) throw err;
+            //console.log(result);
+
+            if(result.Amount > 0){
+              userAmazon = "AMZN"
+              userAmazonPrice = "$" + amazonPrice
+              userAmazonHold = "$" + result.Amount
+              userAmazonAverage = "$" + result.AverageCost
+              
+              userAmazonChange = Math.abs((amazonPrice - result.AverageCost)/ ((amazonPrice + result.AverageCost) / 2))
+              userAmazonChange = Math.round(userAmazonChange * 100) / 100 * 100
+              userAmazonChange = userAmazonChange  + "%"
+            }else{
+              userAmazon = ""
+            }
+
+            db.close();
+          });
+        }else{
+
+        }
+  
+        
+
+      });
+
+
+  
+      //console.log('AMAZON: ' + amazonPrice)
+    },3000)
+
+
+
+    var amazonPerentage = 0;
+
+
+
+    setInterval(function(){
+
+      if(userID != null){
+       
+        MongoClient.connect(url, function(err, db) {
+          if (err) throw err;
+          var dbo = db.db("LAZYCOIN");
+          dbo.collection("User_Owned_Stocks").findOne({UserID:userID,StockID: 1}, function(err, result) {
+            if (err) throw err;
+            var newAmount;
+            
+            if(result.AverageCost > 0){
+              if(result.AverageCost < amazonPrice){
+                //console.log('HIT')
+                
+                newAmount = Math.abs((amazonPrice - result.AverageCost)/ ((amazonPrice + result.AverageCost) / 2))
+                newAmount = Math.round(newAmount * 100) / 100
+                console.log("PERCENTAGE " + newAmount)
+                amazonPerentage = newAmount
+                newAmount = result.Start + (result.Start * newAmount)
+                //console.log("AMOUNT " + newAmount)
+                
+  
+                var myquery = { UserID: userID, StockID: 1 };
+                var newvalues = { $set: {Amount: newAmount} };
+                dbo.collection("User_Owned_Stocks").updateOne(myquery, newvalues, function(err, res) {
+                  if (err) throw err;
+                  //console.log("1 document updated");
+                  //db.close();
+                });
+  
+  
+              }else{
+                newAmount = (amazonPrice - result.AverageCost)/ ((amazonPrice + result.AverageCost) / 2)
+              }
+            }else{
+
+            }
+
+            
+          });
+        });
+
+      }else{
+        //console.log("NOt HIT ")
+      }
+
+
+    },4000)
+
+ 
+
+    
+    
+
+
+    exports.stock = (req,res) =>{
+
+      var time = new Date();
+      var currentTime = time.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', second:'numeric', hour12: true })
+
+      res.render("stock",{
+        time:currentTime,
+        amazonPrice:"$" + amazonPrice,
+        amazonToday:amazonToday + "%",
+        amazonVolume:amazonVolume + "M"
+
+      });
+    };
+
+
+
+
+
+
+
+
 
 
 
@@ -58,6 +242,7 @@ exports.login = (req,res) =>{
 };
 
 exports.logout = (req,res) =>{
+
   req.session.destroy();
   res.redirect('/');
 };
@@ -67,6 +252,31 @@ exports.create = (req,res) =>{
     });
 };
 
+exports.buyStock = (req,res) =>{
+
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("LAZYCOIN");
+    dbo.collection("UserBalaces").findOne({UserID: userID}, function(err, result) {
+      if (err) throw err;
+
+
+      res.render("buyStock",{
+        userBalance: "You have $" + result.Balance + " Available."
+      });
+      
+      db.close();
+    });
+  });
+
+
+
+};
+
+exports.sellStock = (req,res) =>{
+  res.render("sellStock",{
+  });
+};
 
 // exports.data = (req,res) =>{
 //   res.render("login",{
@@ -83,9 +293,14 @@ var currentOwnedStocks;
 exports.user = (req,res) =>{
       stockSelected = "";
       stockInsertID = "";
+      currentStock = "";
       var currentUserBalance
       var AMZN;
       var AAPL;
+
+
+
+
 
       MongoClient.connect(url, function(err, db) {
         if (err) throw err;
@@ -123,20 +338,47 @@ exports.user = (req,res) =>{
 
             //console.log("UB: " + result.Balance)
 
+
+            var time = new Date();
+            var currentTime = time.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', second:'numeric', hour12: true })
+              //console.log(currentTime)
+
+              // if(resultAMAZN != null){
+
+              // }
+            
+            
             res.render("user",{
-              current: result.Balance,
-              ownedStock: AMZN + AAPL
+              name:name,
+              userBalance: "$ " +result.Balance,
+              time: currentTime,
+              amazonPrice: "$" + amazonPrice,
+              amazonToday: amazonToday + "%",
+              applePrice: "$" + applePrice,
+              appleToday: appleToday + "%",
+              teslaPrice: "$" + teslaPrice,
+              teslaToday: teslaToday + "%",
+
+              amazon:userAmazon,
+              userAmazonPrice:userAmazonPrice,
+              userAmazonHold:userAmazonHold,
+              userAmazonAverage:userAmazonAverage,
+              userAmazonChange:userAmazonChange
+
+
+
+             
+             
           
           }); 
+
+
+         
+          db.close();
+
         }); 
-
-
           });
         });
-
-
-
-
       });
 };
 
@@ -153,6 +395,42 @@ exports.comfirmationSell = (req,res) =>{
   });
 };
 
+exports.search = (req,res) =>{
+  res.render("search",{
+  });
+};
+
+
+
+exports.history = (req,res) =>{
+
+  var trade;
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("LAZYCOIN");
+    dbo.collection("Trade_History").find({UserID: userID}).toArray(function(err, result) {
+      if (err) throw err;
+      //console.log(result);
+      trade = result;
+      db.close();
+      //console.log(trade)
+
+      const myJSON = JSON.stringify(trade);
+
+      json = myJSON.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+
+    res.render("history",{
+      trades: json
+    });
+  });
+  });
+
+
+
+
+};
+
 
 
 //------------------------------------------------
@@ -162,6 +440,7 @@ exports.createAccount = async (req, res) => {
 
 //
     var data = req.body;
+    console.log(data.username)
 
 
     var regexUsername = '^.*(?=.{6,}).*$'
@@ -231,22 +510,48 @@ exports.createAccount = async (req, res) => {
             dbo.collection("Users").count({}, function(error, numOfDocs){
               
 
-               userBalances = {UserID: numOfDocs, Balance: 1000, BuyPower: 1000}
+               userBalances = {UserID: numOfDocs, Balance: 1000}
 
               dbo.collection("UserBalaces").insertOne(userBalances, function(err, res) {
                 if (err) throw err;
                 console.log("1 document inserted");
                 //db.close();
               });
-              console.log("HERE:" + userID + "STOCKID: " + stockInsertID)
-              var buyRecord = { UserID: numOfDocs, StockID: 1,Stock: "AMZN", Shares: 0 , Amount: 0, AverageCost: 0  }; 
-              var buyRecord2 = { UserID: numOfDocs, StockID: 2,Stock: "APPL",Shares: 0 , Amount: 0, AverageCost: 0  }; 
-              dbo.collection("User_Owned_Stocks").insertOne(buyRecord, function(err, res) {
+     
+           
+              var buyRecord3 = { UserID: numOfDocs, StockID: 3,Stock: "TSLA",Shares: 0 , Amount: 0, Start:0, AverageCost: 0  }; 
+              var buyRecord4 = { UserID: numOfDocs, StockID: 4,Stock: "MSFT",Shares: 0 , Amount: 0, Start:0, AverageCost: 0  }; 
+              var buyRecord5 = { UserID: numOfDocs, StockID: 5,Stock: "META",Shares: 0 , Amount: 0, Start:0, AverageCost: 0  }; 
+              var buyRecord6 = { UserID: numOfDocs, StockID: 6,Stock: "DIS",Shares: 0 , Amount: 0, Start:0, AverageCost: 0  }; 
+              var buyRecord7 = { UserID: numOfDocs, StockID: 1,Stock: "AMZN",Shares: 0 , Amount: 0, Start:0, AverageCost: 0  }; 
+              var buyRecord8 = { UserID: numOfDocs, StockID: 2,Stock: "AAPL",Shares: 0 , Amount: 0, Start:0, AverageCost: 0  }; 
+
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord3, function(err, res) {
                 if (err) throw err;
                 console.log("1 document inserted");
                 //db.close();
               });
-              dbo.collection("User_Owned_Stocks").insertOne(buyRecord2, function(err, res) {
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord4, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
+                //db.close();
+              });
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord5, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
+                //db.close();
+              });
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord6, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
+                db.close();
+              });
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord7, function(err, res) {
+                if (err) throw err;
+                console.log("1 document inserted");
+                db.close();
+              });
+              dbo.collection("User_Owned_Stocks").insertOne(buyRecord8, function(err, res) {
                 if (err) throw err;
                 console.log("1 document inserted");
                 db.close();
@@ -295,7 +600,7 @@ exports.loginAccount = async (req, res) => {
         });
         }else if(inputUsername == result.Username){
 
-          var name = result.Username
+           name = result.Username
 
           userID = result.UserID;
           var AMZN;
@@ -313,10 +618,10 @@ exports.loginAccount = async (req, res) => {
             dbo.collection("User_Owned_Stocks").findOne({UserID: userID, StockID: 1}, function(err, resultAMAZN) {
               if (err) throw err;
               //console.log(result2);
-              //db.close();
+              //db.close();nod
   
               if(resultAMAZN.Amount > 0){
-                AMZN = "AMZN";
+                AMZN = "AMZN ";
               }else{
                 AMZN = "";
               }
@@ -327,7 +632,7 @@ exports.loginAccount = async (req, res) => {
                 //db.close();
     
                 if(resultAPPLE.Amount > 0){
-                  AAPL = "AAPL";
+                  AAPL = "AAPL ";
                 }else{
                   AAPL = "";
                 }
@@ -340,12 +645,37 @@ exports.loginAccount = async (req, res) => {
 
 
 
-            res.render("user",    {
-              name: name,
-              current : loginUserBalance,
-              buyPower: result.BuyPower,
-              ownedStock: AMZN + AAPL
-            });
+            var time = new Date();
+            var currentTime = time.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', second:'numeric', hour12: true })
+
+
+
+              res.render("user",    {
+                name: name,
+                userBalance : "$ " + loginUserBalance,
+                amazonPrice: "$" + amazonPrice,
+                applePrice: "$" + applePrice,
+                teslaPrice: "$" + teslaPrice,
+                time: currentTime
+
+
+                
+  
+              });
+              
+          
+        
+
+
+
+
+
+
+
+
+
+
+
           }); 
           });
           });
@@ -357,19 +687,25 @@ exports.loginAccount = async (req, res) => {
 
 
 
-const encodedParams = new URLSearchParams();
+
 
 
  
 //-----------------------------------------------------------------------------------------------
 
 
+
 exports.data = (req,res) =>{
 
 var data = req.body;
 var stock = data.stockSelected;
+
+currentStock = stock
+
 encodedParams.append("symbol", stock );
-//console.log("STOCK:" + stock)
+
+
+//console.log("STOCK:" + search)
 
 
 MongoClient.connect(url, function(err, db) {
@@ -379,7 +715,7 @@ MongoClient.connect(url, function(err, db) {
 
 
     if (err) throw err;
-    //console.log(result);
+  
     currentBalace = result.Balance;
     db.close();
   });
@@ -392,10 +728,10 @@ MongoClient.connect(url, function(err, db) {
 
 
 
-    if (err) throw err;
-    //console.log(result.StockID);
-    stockInsertID = result.StockID;
-    db.close();
+      stockInsertID = result.StockID;
+
+    
+    //db.close();
   });
 });
 
@@ -414,7 +750,7 @@ const options = {
 axios.request(options).then(function (response) {
   var dataFromResponse = response.data;
 
-	//console.log(dataFromResponse.result.regularMarketPrice);
+	//console.log(dataFromResponse);
 
   stockName = dataFromResponse.result.shortName
   stockSymbol = dataFromResponse.result.symbol
@@ -423,27 +759,11 @@ axios.request(options).then(function (response) {
   stockHigh = dataFromResponse.result.regularMarketDayHigh
   stockLow = dataFromResponse.result.regularMarketDayLow
 
+  stockMarketChangePercent = dataFromResponse.result.regularMarketChangePercent
+  stockMarketVolume = dataFromResponse.result.regularMarketVolume
+
   currentStockPrice = currentPrice;
 
-
-  // var today = new Date();  
-  // var time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-  // //console.log(time)
-
-  // MongoClient.connect(url, function(err, db) {
-  //   if (err) throw err;
-  //   var dbo = db.db("LAZYCOIN");
-  //   var myobj = {Time: time, CurrentPrice: currentPrice};
-  //   dbo.collection(stockSymbol + "Seconds").insertOne(myobj, function(err, res) {
-  //     if (err) throw err;
-  //     //console.log("1 document inserted");
-  //     db.close();
-  //   });
-  // });
-
-
-
- 
 
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
@@ -460,50 +780,78 @@ axios.request(options).then(function (response) {
       var price;
       var todayReturn;
       var todayReturnAmount;
-      var updatedTodayReturn;
+      var marketChangePercent;
 
 
-     todayReturn = (currentStockPrice - result.AverageCost) / result.AverageCost;
-     todayReturnAmount = todayReturn * (todayReturn / 100) 
-     updatedTodayReturn = result.Amount + todayReturn * (todayReturn / 100) 
 
-
-     console.log("TODAY: " + todayReturnAmount);
-
-    //  var oldAmount = { Amount: result.Amount };
-    //  var newAmount = { $set: {Amount: todayReturnAmount} };
-    //  dbo.collection("User_Owned_Stocks").updateOne(oldAmount, newAmount, function(err, res) {
-    //    if (err) throw err;
-    //    //console.log("1 document updated");
-    //    //db.close();
-    //  });
       
       
       if(result.Amount > 0 || result.Amount == null){
-        amount = "Your Equity: " + result.Amount;
-        price = "Your Average Cost: " + result.AverageCost;
-        percentage = "Total Return: " + todayReturnAmount  + " ( " + todayReturn +  "%" + " ) ";  
+        amount = result.Amount;
+        price = result.AverageCost;
       }else{
         amount = "";
         price = "";
-        percentage = "";
-        todayReturn = "";
+   
+      }
+      //console.log(price)
+      //console.log("CURRETST:" + price)
+      //console.log("CURRETST:" + amount)
+
+      var returnPercentage;
+      var difference;
+
+      difference = 1 - (currentStockPrice / result.AverageCost);
+
+      difference = difference * 100
+
+      
+
+
+  var percentage;
+
+  //console.log("A: " + amazonPerentage)
+
+      if(stock == "AMZN"){
+        if(amazonPerentage > 0){
+          percentage = amazonPerentage * 100
+        }else{
+          percentage = amazonPerentage
+        }
+        
       }
 
-      //console.log("CURRETST:" + amount)
+
+   
+
+
+
+    //console.log("P: " + percentage)
+    
+      var shares = Math.round(result.Shares * 100) /100
+      
+
   
 
   res.render("data",{
-    balance: currentBalace,
+    balance: "You have $" + currentBalace + " available",
     name: stockName,
     symbol: stockSymbol,
     current: currentPrice,
     open: stockOpen,
     high: stockHigh,
     low: stockLow,
-    amount: amount,
-    price: price,
-    percentage: percentage
+    amount: "$ " + amount,
+    price: "$" + price,
+    percentage: stockMarketChangePercent + "%",
+    volume: stockMarketVolume,
+    shares: result.Shares,
+    returnPercentage:percentage + "%",
+    average: "$ " + result.AverageCost,
+    buy:"BUY",
+    sell:"SELL"
+
+
 
   });
 
@@ -520,7 +868,113 @@ axios.request(options).then(function (response) {
 	console.error(error);
 });
 
+
+
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exports.searchStock = async(req,res) =>{
+
+
+var data = req.body;
+var searchStock = data.stockSearch
+var buy;
+var sell;
+
+console.log("SEARCH: " + searchStock)
+
+if(searchStock == "AMZN" || searchStock == "AAPL" || searchStock == "TSLA" || searchStock == "MSFT" || searchStock == "DIS" || searchStock == "META"){
+  buy = "BUY";
+  sell = "SELL";
+}else{
+
+}
+
+
+encodedParams.append("symbol", searchStock );
+
+
+
+const options = {
+  method: 'GET',
+  url: 'https://yahoofinance-stocks1.p.rapidapi.com/stock-metadata',
+  params: {Symbol: searchStock},
+  headers: {
+    'X-RapidAPI-Key': '238218e685msh4e469b864f5d032p184fd5jsn8fe519100be3',
+    'X-RapidAPI-Host': 'yahoofinance-stocks1.p.rapidapi.com'
+  }
+};
+
+axios.request(options).then(function (response) {
+  var dataFromResponse = response.data;
+  console.log(dataFromResponse)
+
+
+  stockName = dataFromResponse.result.shortName
+  stockSymbol = dataFromResponse.result.symbol
+  currentPrice = dataFromResponse.result.regularMarketPrice
+  stockOpen = dataFromResponse.result.regularMarketOpen
+  stockHigh = dataFromResponse.result.regularMarketDayHigh
+  stockLow = dataFromResponse.result.regularMarketDayLow
+
+  stockMarketChangePercent = dataFromResponse.result.regularMarketChangePercent
+  stockMarketVolume = dataFromResponse.result.regularMarketVolume
+
+
+
+  res.render("data",{
+    name: stockName,
+    symbol: stockSymbol,
+    current: currentPrice,
+    open: stockOpen,
+    high: stockHigh,
+    low: stockLow,
+    percentage: stockMarketChangePercent + "%",
+    volume: stockMarketVolume,
+    shares: 0,
+    amount: 0,
+    price:0,
+    returnPercentage:0,
+    buy:buy,
+    sell:sell
+  
+  
+  });
+},)
+
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -537,136 +991,100 @@ exports.buy = async(req,res) =>{
 
 
   var data = req.body
+  var enterAmount = data.amount
 
 
-  var totalAmountBought;
-  var totalSharesBough;
 
- 
+
+
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
     var dbo = db.db("LAZYCOIN");
-    dbo.collection("UserBalaces").findOne({UserID: userID}, function(err, result) {
+    dbo.collection("UserBalaces").findOne({UserID:userID}, function(err, result) {
       if (err) throw err;
-      //console.log("HAVE:" + result.Balance);
- 
-      //db.close();
 
-
-      if( result.Balance > data.amount){
-
-        //console.log("YOU CAN BUY")
+      console.log("CURRENT: " + currentStockPrice)
     
-    
-    
-        MongoClient.connect(url, function(err, db) {
-          if (err) throw err;
-          var dbo = db.db("LAZYCOIN");
+ if(enterAmount <= result.Balance){
 
 
 
-
-
-          dbo.collection("User_Owned_Stocks").findOne({StockID:parseInt(stockInsertID), UserID: parseInt(userID)}, function(err, result) {
-            if (err) throw err;
-          
-
-            if(result.StockID == stockInsertID){
-                         
-              var updateAmount = {$set:{Amount: parseInt(result.Amount) + parseInt(data.amount)}};
-              var currentAmount = {Amount: result.Amount};
-
-             
-              var addOnShares = parseInt(data.amount) / currentStockPrice;
-
-              totalSharesBough = result.Shares + addOnShares;
-              var updateShares = {$set:{Shares: totalSharesBough}};
-              var currentShares = {Shares: result.Shares}
-              totalAmountBought = parseInt(result.Amount) + parseInt(data.amount);
-
-              var AverageCost = totalAmountBought / totalSharesBough;
-              var currentAverageCost = {AverageCost: result.AverageCost}
-              var updateAverageCost = {$set:{AverageCost:AverageCost }}
-              
-
-              //console.log("TOTALAMOUNT: " + totalAmountBought);
-              //console.log("TOTALSHARE: " + totalSharesBough);
-              //console.log("AVERAGE: " + AverageCost);
-
-              var today = new Date();
-              var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
-
-              var record = { UserID: userID, Stock: result.Stock, Type: "Buy", Amount: data.amount, Price: currentStockPrice, Date: date };
-              dbo.collection("Trade_History").insertOne(record, function(err, res) {
-                if (err) throw err;
-                //console.log("1 document inserted");
-                //db.close();
-
+  var sharesCalculate = parseInt(enterAmount) / currentStockPrice
   
-             
 
-
-              dbo.collection("User_Owned_Stocks").updateOne(currentAmount, updateAmount, function(err, res) {
-                if (err) throw err;
-                
-              });
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("LAZYCOIN");
+    dbo.collection("User_Owned_Stocks").findOne({UserID:parseInt(userID),StockID:parseInt(stockInsertID)}, function(err, result2) {
+      if (err) throw err;
      
-                dbo.collection("User_Owned_Stocks").updateOne(currentShares, updateShares, function(err, res) {
-                  if (err) throw err;
-                  
-                  dbo.collection("User_Owned_Stocks").updateOne(currentAverageCost, updateAverageCost, function(err, res) {
-                    if (err) throw err;
-                    
-                  });
-                });
-              });
+      sharesCalculate =  sharesCalculate + result2.Shares
 
-                //console.log('HIT')
-                res.render("comfirmation",{
-                  tradeMessage: "YOUR BUY ORDER IS COMPELETED!!!",
-                  stock: result.Stock,
-                  amount: data.amount,
-                  price: currentStockPrice,
-                  share: addOnShares,
-                  average: AverageCost
-              
-        });
-
+      console.log(result2.Shares)
       
-              dbo.collection("UserBalaces").findOne({UserID: userID}, function(err, result) {
-                if (err) throw err;
-                dbBalance = result.Balance;
-                userCurrentBalance = result.Balance - data.amount;
-        
-      
-                
-        
-                var myquery = { Balance: dbBalance };
-                var newvalues = { $set: {UserID: userID, Balance: userCurrentBalance } };
-            
-                
-                dbo.collection("UserBalaces").updateOne(myquery, newvalues, function(err, res) {
-                  if (err) throw err;
-           
-                  db.close();
-                });
+      var updatedAmount = parseInt(enterAmount) + parseInt(result2.Amount) 
+      console.log("SHARE: " + sharesCalculate)
 
-          
-                
-              });
+      var averageCostCalculate = (currentStockPrice * sharesCalculate) / sharesCalculate
 
-            }
-          });
-
-       
-        });
+      if(result2.AverageCost == 0){
+        averageCostCalculate = averageCostCalculate
       }else{
-        res.render("comfirmation",{
-          tradeMessage: "YOU DONT HAVE ENOUGH!!!"
-        });
+        averageCostCalculate = (result2.AverageCost + averageCostCalculate)/2
       }
+
+      
+      var userAmount = result.Balance - enterAmount
+      //console.log('AVERAGE: ' + averageCostCalculate)
+      console.log('UserAMOUNt ' + userAmount)
+      
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("LAZYCOIN");
+    var myquery = { UserID: parseInt(userID), StockID: parseInt(stockInsertID) };
+    var mybalance = {UserID: parseInt(userID)}
+    var newAmount = { $set: {Amount: updatedAmount } };
+    var newStart = { $set: {Start: updatedAmount } };
+    var newShares = {$set: {Shares: sharesCalculate}}
+    var newAverageCost = {$set: {AverageCost: averageCostCalculate}}
+    var newUserBalance = {$set: {Balance: userAmount}}
+    dbo.collection("User_Owned_Stocks").updateOne(myquery, newAmount, function(err, res) {
+      if (err) throw err;
     });
+    dbo.collection("User_Owned_Stocks").updateOne(myquery, newShares, function(err, res) {
+      if (err) throw err;
+    });
+    dbo.collection("User_Owned_Stocks").updateOne(myquery, newAverageCost, function(err, res) {
+      if (err) throw err;
+    });
+    dbo.collection("UserBalaces").updateOne(mybalance, newUserBalance, function(err, res) {
+      if (err) throw err;
+    });
+    dbo.collection("User_Owned_Stocks").updateOne(myquery, newStart, function(err, res) {
+      if (err) throw err;
+    });
+
+    res.render("buyStock",{
+      tradeMessage: "You bought " + result2.Stock + " at $" + currentStockPrice + " for $" + enterAmount,
+      userBalance: "You have  $" + userAmount + " available"
+    })
   });
+
+});
+});
+
+
+ }else{
+  res.render("buyStock",{
+    tradeMessage: "You don't have enough!"
+  })
+ }
+
+
+
+});
+});
+
 }
 
 
@@ -676,78 +1094,39 @@ exports.buy = async(req,res) =>{
 
 exports.sell = async(req,res) =>{
 
-var data = req.body;
-
-sellAmount = data.amount;
-var sellShares;
-
-
-//console.log(sellAmount);
-
-MongoClient.connect(url, function(err, db) {
-  if (err) throw err;
-  var dbo = db.db("LAZYCOIN");
-  dbo.collection("User_Owned_Stocks").findOne({UserID: userID, StockID:parseInt(stockInsertID) }, function(err, result) {
-    if (err) throw err;
-
-    if(result.Amount >= sellAmount){
-
-
-      var today = new Date();
-      var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
-
-      var record = { UserID: userID, Stock: result.Stock, Type: "Sell", Amount: data.amount, Price: currentStockPrice, Date: date };
-      dbo.collection("Trade_History").insertOne(record, function(err, res) {
-        if (err) throw err;
-        //console.log("1 document inserted");
-        //db.close();
-
-      });
-      var newAmount = result.Amount - data.amount;
-      //console.log(newAmount);
   
-      var currentAmount = { Amount: result.Amount };
-      var updateAmount = { $set: {Amount: newAmount } };
-      dbo.collection("User_Owned_Stocks").updateOne(currentAmount, updateAmount, function(err, res) {
-      if (err) throw err;
-      //db.close();
-    });
-
-    if(result.Amount = 0){
-      shareSell = 0;
-    }else{
-      shareSell = result.Shares - (sellAmount / currentStockPrice);
-    }
-
-      sellShares = sellAmount / currentStockPrice;
-
-
-      console.log("SHARESELL:" + shareSell);
-      var currentShares = {Shares: result.Shares}
-      var updateShares = {$set:{Shares: shareSell}};
-      dbo.collection("User_Owned_Stocks").updateOne(currentShares, updateShares, function(err, res) {
-        if (err) throw err;
-        db.close();
-
-
-      });
-      console.log('SELL: ' + sellShares)
-      
-      res.render("comfirmationSell",{
-        tradeMessage: "YOUR SELL ORDER IS COMPELETED!!",
-        stock: result.Stock,
-        amount: data.amount,
-        price: currentStockPrice,
-        share: sellShares,
-    });
+  }
 
 
 
-    }else{
-      res.render("comfirmationSell",{
-        tradeMessage: "YOU DONT HAVE ENOUGH STOCK!!!"
-      });
-    }
-  });
-});
+exports.live = (req,res) =>{
+ 
+
+
+encodedParams.append("symbol", currentStock );
+
+
+const options = {
+  method: 'GET',
+  url: 'https://yahoofinance-stocks1.p.rapidapi.com/stock-metadata',
+  params: {Symbol: currentStock},
+  headers: {
+    'X-RapidAPI-Key': '238218e685msh4e469b864f5d032p184fd5jsn8fe519100be3',
+    'X-RapidAPI-Host': 'yahoofinance-stocks1.p.rapidapi.com'
+  }
+};
+
+axios.request(options).then(function (response) {
+  var dataFromResponse = response.data;
+
+
+  console.log(dataFromResponse.result.regularMarketPrice)
+
+  res.render("live",{
+   price:dataFromResponse.result.regularMarketPrice
+  })
+ 
+})
 }
+
+

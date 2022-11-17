@@ -51,11 +51,42 @@ app.post("/create",urlencodedParser, routes.createAccount);
 
 
 app.get("/login",  routes.login);
-app.post("/login", urlencodedParser, routes.loginAccount);
+app.post("/loginAccount", urlencodedParser, routes.loginAccount);
+
+app.get("/comfirmation", routes.comfirmation);
+app.get("/comfirmationSell", routes.comfirmationSell);
+app.get("/history", routes.history);
+app.get("/search", routes.search);
+app.get("/stock", routes.stock);
+
+app.get("/live", routes.live);
+
+app.post("/searchStock",urlencodedParser,routes.searchStock);
 
 app.get("/user", routes.user);
 
 app.get("/data",  routes.data);
 app.post("/data", urlencodedParser, routes.data);
 
+app.get("/buyStock",routes.buyStock);
+app.post("/buy",urlencodedParser, routes.buy);
+
+app.get("/sellStock",routes.sellStock);
+app.post("/sell",urlencodedParser, routes.sell);
+
+
+
 app.listen(2000);
+
+
+
+
+
+
+
+
+
+
+
+
+
