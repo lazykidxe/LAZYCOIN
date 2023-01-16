@@ -1,0 +1,50 @@
+/*background color*/
+body{
+    background-color: lightblue;
+}
+
+h1{
+    color: black;
+    text-align: center;
+    font-size: 40px;
+    
+}
+
+p{
+    font-family:cursive;
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 15px;
+    padding: 15px;
+}
+
+/*static width*/
+img{
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 150px;     
+}
+
+footer{
+    position: static;
+    text-align: center;
+    background-color: yellow;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+}
+
+a{
+    color: blue;
+}
+
+td{
+    padding-right: 100px;
+    color: red;
+}
+
+th{
+    color: seashell;
+    padding-right: 100px;
+}
